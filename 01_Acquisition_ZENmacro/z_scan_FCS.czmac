@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Script>
+  <Context>Zen26</Context>
+  <Version>1.0</Version>
+  <Language>Python</Language>
+  <Text>#################################################################
+# File        : z_scan_FCS.czmac
+# Version     : 0.2.0
+# Author      : Jan-Hagen Krohn
+# Date        : 03.04.2024
+# Institution : Max Planck Institute for Biochemistrz
+#
+# Macro for setting up a z-scan FCS acquisition in ZEN Blue (Using LSM FCS mode).
+# Note that this is merely a workaround for the fact that the z-stack setup is not available in LSM FCS mode.
+# The macro by itself does not set up the FCS acquisition settings for each position, nor does it perform any analysis.
+#
+# Parts of the macro are based on the Smart_Dynamics.py macro provided by ZEISS in their OAD GitHub repo, which is Copyright (c) 2021 Carl Zeiss AG, Germany.
+# 
+# Workflow Description
+# -----------------------
+# 
+# - Define an LMS FCS experiment with the desired settings for a single acquisition
+# - Define one or multiple reference points (in x,y,z) for the z-scan FCS acquisition using the "Single Position" tool
+# - Save the experiment setup including the positions
+# - Run macro to expand each reference point into a series of positions stacked along z
+#   -&gt; In the macro's settings window, select the just-saved experiment
+#   -&gt; Define the range and spacing of the z-scan around the reference point
+#   -&gt; Choose a z-scan strategy. 
+#       &gt; The "linear" scan patterns are similar to a typical z-stack, with scan direction either top-down or bottom-up. 
+#       &gt; The "symmetric centrifugal" scan pattern starts in the center and alternates between going and down, moving outward step-by-step. 
+#         It helps get the signal close to the center (usually the most precious) early on when photodamage is small, but it is less precise in positioning.
+#       &gt; The "symmetric centripetal" scan pattern is the inverse of the "symmetric centrifugal" pattern. 
+#         Not sure honestly what its applications might be, I included it because might as well while I was working on this.
+#   -&gt; Specify a directory in which a subdirectory will be created for the acquisition. In that subdirectory, a .csv file will be written with the macro-generated position list to aid data analysis.
+# - If desired: Perform further manual adjustment of settings
+# - Start acquisition
+#
+# Disclaimer: This tool is purely experimental. Feel free to
+# use it at your own risk. Especially be aware of the fact
+# that automated stage movements might damage hardware if
+# one starts an experiment and the the system is not setup properly.
+# Please check everything in simulation mode first.
+#
+#################################################################
+
+from System.IO import File, Directory, Path
+import time
+from datetime import datetime
+import errno
+from System import Array
+from System import ApplicationException
+from System import TimeoutException
+import sys
+from collections import *
+import csv
+
+
+def createfolder(basedir, formatstring='%Y%m%d_%H%M%S'):
+    # construct new directory name nased on date and time
+    newdir = Path.Combine(basedir, datetime.now().strftime(formatstring) + 'zScanFCS')
+    # check if the new directory (for whatever reasons) already exists
+    try:
+        newdir_exists = Directory.Exists(newdir)
+        if not newdir_exists:
+            # create new directory if is does not exist
+            Directory.CreateDirectory(newdir)
+        if newdir_exists:
+            # raise error if it really already exists
+            raise SystemExit
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            newdir = None
+            raise  # This was not a "directory exist" error..
+
+    return newdir
+    
+def getshortfiles(filelist):
+    files_short = []
+    for short in filelist:
+        files_short.append(Path.GetFileName(short))
+
+    return files_short
+
+
+def get_z_scan_pattern(z_scan_range,
+                       z_scan_sampling,
+                       z_scan_mode):
+                       
+    z_scan_pattern = []
+    n_steps = int(z_scan_range // z_scan_sampling)
+    
+    if z_scan_mode == 'linear bottom-up':
+        next_z = - z_scan_range / 2.
+        
+        for i_step in range(n_steps):
+            z_scan_pattern.append(next_z)
+            next_z += z_scan_sampling
+            
+    elif z_scan_mode == 'linear top-down':
+        next_z = z_scan_range / 2.
+        
+        for i_step in range(n_steps):
+            z_scan_pattern.append(next_z)
+            next_z -= z_scan_sampling
+            
+    elif z_scan_mode == 'symmetric centrifugal':
+        next_z_up = 0    
+        next_z_down = -z_scan_sampling
+        
+        for i_step in range(n_steps):
+            if i_step % 2 == 0: # Even number - step up away from center
+                z_scan_pattern.append(next_z_up)
+                next_z_up += z_scan_sampling
+            else: # Odd number - step down away from center
+                z_scan_pattern.append(next_z_down)
+                next_z_down -= z_scan_sampling
+                
+    elif z_scan_mode == 'symmetric centripetal':
+        next_z_up = - z_scan_range / 2.
+        next_z_down = next_z_up + (n_steps - 1) * z_scan_sampling
+        
+        for i_step in range(n_steps):
+            if i_step % 2 == 0: # Even number - step up from bottom to center
+                z_scan_pattern.append(next_z_up)
+                next_z_up += z_scan_sampling
+            else: # Odd number - step down from top to center
+                z_scan_pattern.append(next_z_down)
+                next_z_down -= z_scan_sampling  
+    else:
+        print('Undefined z-scan mode.')
+        raise SystemExit
+
+    return z_scan_pattern
+
+
+##############################################################################################################
+
+# experiment blockindex
+blockindex = 0
+
+
+# default folder for output
+imgfolder = r'c:\Temp\output'
+
+# clear output console
+Zen.Application.MacroEditor.ClearMessages()
+
+# get list with all existing experiments and image analysis setup and a short version of that list
+docfolder = Zen.Application.Environment.GetFolderPath(ZenSpecialFolder.UserDocuments)
+expfiles = Directory.GetFiles(Path.Combine(docfolder, 'Experiment Setups'), '*.czexp')
+expfiles_short = getshortfiles(expfiles)
+
+
+# 4 Different z-scan modes available
+z_scan_modes = ['linear bottom-up', 'linear top-down', 'symmetric centrifugal', 'symmetric centripetal']
+
+# Initialize Dialog
+smartD = ZenWindow()
+smartD.Initialize('Z Scan FCS - Version : 0.1.0')
+# add components to dialog
+smartD.AddLabel('Select an experiment  setup------------------------------')
+smartD.AddDropDown('fcs_exp_name', 'FCS Experiment', expfiles_short, 0)
+smartD.AddLabel('Define Z scan sample points------------------------------')
+smartD.AddIntegerRange('z_scan_range_up', 'Scan range above reference point [nm]', 1500, 100, 50000)
+smartD.AddIntegerRange('z_scan_range_down', 'Scan range below reference point[nm]', 1500, 100, 50000)
+smartD.AddIntegerRange('z_scan_sampling', 'Step size [nm]', 200, 100, 10000)
+smartD.AddLabel('Choose scan strategy ------------------------------')
+smartD.AddDropDown('z_scan_mode', 'Scan strategy', z_scan_modes, 0)
+smartD.AddLabel('Specify output directory for writing positions table ----------------------')
+smartD.AddFolderBrowser('outfolder', 'Savefolder for positions list', imgfolder)
+# show the window
+result = smartD.Show()
+
+if result.HasCanceled:
+    message = 'Macro was canceled by user.'
+    print(message)
+    raise SystemExit
+
+# get the values and store them
+fcs_exp_name = result.GetValue('fcs_exp_name')
+z_scan_range_up = result.GetValue('z_scan_range_up') / 1000.
+z_scan_range_down = result.GetValue('z_scan_range_down') / 1000.
+z_scan_range = z_scan_range_down + z_scan_range_up
+z_scan_center_offset = (z_scan_range_up - z_scan_range_down) / 2
+z_scan_sampling = result.GetValue('z_scan_sampling') / 1000.
+z_scan_mode = str(result.GetValue('z_scan_mode'))
+outfolder = str(result.GetValue('outfolder'))
+
+
+outfolder_full = createfolder(outfolder)
+
+# check if the experiment contains tile regions
+fcs_exp = Zen.Acquisition.Experiments.GetByName(fcs_exp_name)
+isTileExp = fcs_exp.IsTilesExperiment(0)
+
+if not isTileExp:
+    message = 'Tiles tab must be active in experiment setup.'    
+
+    print(message)
+    raise SystemExit
+
+single_position_infos = fcs_exp.GetSinglePositionInfos(0)
+
+if len(single_position_infos) == 0:
+    message = 'Register Z-scan center position(s) in Positions tool before using macro.'
+    print(message)
+    raise SystemExit
+
+
+
+# Define z scan pattern around center
+z_scan_pattern = get_z_scan_pattern(z_scan_range,
+                                    z_scan_sampling,
+                                    z_scan_mode)
+            
+
+# Clear all existing experiment regions
+fcs_exp.ClearExperimentRegionsAndPositions(0)
+fcs_exp.ClearTileRegionsAndPositions(0)
+
+# Ensure that positions are defined absolute, not relative to image
+# fcs_exp.SetPositionRegionsRelativeToImage(0, False)
+
+# Unpack existing positions and define a series of new ones describing z scans
+# Also prepare stuff for writing a .csv output
+x_list = []
+y_list = []
+z_list = []
+position_ind_list = []
+meas_ind_list = []
+meas_name_list = []
+meas_ind = 1
+
+
+for i_position, single_position_info in enumerate(single_position_infos):
+    x = single_position_info.X    
+    y = single_position_info.Y
+    z_reference = single_position_info.Z
+    
+    for i_step, z_offset in enumerate(z_scan_pattern):
+        z = z_offset + z_reference + z_scan_center_offset
+        fcs_exp.AddSinglePosition(blockIndex = 0,
+                                  x = x,
+                                  y = y,
+                                  z = z)
+        x_list.append(x)        
+        y_list.append(y)
+        z_list.append(z) 
+        position_ind_list.append(i_position)
+        meas_ind_list.append(meas_ind)
+        meas_name_list.append('P' + str(meas_ind))
+        meas_ind += 1
+        
+# Write position list to .csv
+with open(Path.Combine(outfolder_full, 'z_scan_positions.csv'), 'wb') as f:
+    csv_writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+    csv_writer.writerow(['MeasurementIndex', 'PositionIndex', 'MeasurementName', 'x[micron]', 'y[micron]', 'z[micron]'])
+    for i_row in range(meas_ind - 1):
+        csv_writer.writerow([meas_ind_list[i_row], position_ind_list[i_row], meas_name_list[i_row], x_list[i_row], y_list[i_row], z_list[i_row]])
+
+
+
+fcs_exp.SetActive()
+        
+
+print('Ready.')
+</Text>
+  <Author></Author>
+  <Description></Description>
+  <Keywords></Keywords>
+  <Row>2</Row>
+  <Column>33</Column>
+</Script>
