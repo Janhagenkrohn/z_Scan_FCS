@@ -1,6 +1,6 @@
 function [corr_norm, lags] = cross_corr_weights(ch1, weights_1, ch2, weights_2, start_time, stop_time, coarseness, offset_lag)
 
-%%% LICENCE NOTE
+%%% LICENSE NOTE
 % Copyright (c) 2017, Boris Spokoyny
 % Modified Jan-Hagen Krohn, 2024
 % All rights reserved.

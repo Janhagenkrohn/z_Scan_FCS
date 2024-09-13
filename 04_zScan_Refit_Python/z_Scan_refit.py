@@ -34,8 +34,6 @@ numerical_aperture = 1.2
 #%% After this point, normally no editing by the user should be needed
 
 ouput_folder = os.path.split(file_path_acf_fits)[0]
-save_path = os.path.join(ouput_folder,
-                         output_name)
 
 # Load and unpack single-ACF fit parameters and positions list
 data = pd.read_csv(file_path_acf_fits, 
@@ -179,7 +177,8 @@ class Z_Scan_refit():
 
 n_xy = positions['PositionIndex'].max() + 1
 
-output_table_created = False
+table_save_path = os.path.join(ouput_folder,
+                               output_name)
 
 # Iteration over xy positons
 for i_xy in range(n_xy):
@@ -427,46 +426,24 @@ for i_xy in range(n_xy):
         export_dict['Filename'] = one_file_name
         
 
-        # Write fit results
-        if not os.path.exists(save_path):
-            print('writing header')
-            # File does not exist yet: Create and write header line
-            with open(save_path, 'wt') as f:
-                for key in export_dict.keys():
-                    f.write(key + ',')
-                f.write('\n')
         
-        # Ensure all rights for read/write are set
-        os.chmod(save_path, 
-                  stat.S_IRWXU)
 
-        # Now add content, which is always the same thing
-        with open(save_path, 'at') as f:
-            print(f'writing dataset {one_file_name}')
-            for key in export_dict.keys():
-                # print(f'{key}: {export_dict[key]}')
-                f.write(str(export_dict[key]) + ',')
-                # print('done')
-            f.write('\n')
-
-
-
-        # fit_result_df = pd.DataFrame(export_dict, 
-        #                               index = [0]) 
-        # if not os.path.exists(save_path):
-        # # if not output_table_created:
-        #     # Does not yet exist - create with header
-        #     fit_result_df.to_csv(save_path, 
-        #                           header = True, 
-        #                           index = False)
+        # Write fit results
+        fit_result_df = pd.DataFrame(export_dict, 
+                                      index = [0]) 
+        
+        if not os.path.exists(table_save_path):
+            # Does not yet exist - create with header
+            fit_result_df.to_csv(table_save_path, 
+                                  header = True, 
+                                  index = False)
                         
-        # else:
-        #     # Exists - append
-        #     with open(save_path, mode = 'a') as f:
-        #         fit_result_df.to_csv(f, 
-        #                               # mode = 'a', 
-        #                               header = False, 
-        #                               index = False)
+        else:
+            # Exists - append
+            fit_result_df.to_csv(table_save_path, 
+                                 mode = 'a', 
+                                 header = False, 
+                                 index = False)
  
         
         # .csv export of fit curves
