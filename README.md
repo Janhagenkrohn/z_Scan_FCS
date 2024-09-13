@@ -6,7 +6,7 @@ z-Scan FCS is a technique for measuring Fluorescence Correlation Spectroscopy in
 For further details, see _e.g._:
 Benda, ..., Hof 2003, doi.org/10.1021/la0270136
 Macháň and Hof 2010, doi.org/10.1016/j.bbamem.2010.02.014
-Betaneli, Mücksch, and Schwille 2019. doi.org/10.1007/978-1-4939-9512-7_18
+Betaneli, Mücksch, and Schwille 2019, doi.org/10.1007/978-1-4939-9512-7_18
 
 The scripts here help perform z-Scan FCS conveniently, with emphasis on automation of multiple subsequent z-scan acquisitions within one sample, and batch-mode analysis. 
 
@@ -39,3 +39,26 @@ Huge Thanks goes to Yusuf Qutbuddin, who wrote the original, more complex versio
 This single, relatively compact, script takes the output table in which 03_Individual_ACF_Fitting_Python compiled the individual correlation function fit parameters, associates them with the coordinate data written by the acquisition macro, and performs the re-fit of the z-Scan profile of count rate, apparent particle number, and apparent diffusion time to get accurate "in-focus" values for all three. 
 
 Note that as described in the publications listed above, this is a self-calibrating analysis that determines the beam waist radius needed for physical interpretation of particle number (-> concentration) and diffusion time (-> diffusion coefficient) directly from the data. Depending on the accuracy of the automated xyz coordinate targeting, this may not be reliable though. If you see that the beam waist diameter is not robust/reproducible, you may be better off interpreting the obtained in-focus diffusion time and particle number (which are more robustly estimated than the beam waist diameter) based on standard FCS calibration, and still profit from automated acquisition and focus-finding.
+
+
+### Python environment requirements
+The functions used are not especially fancy, the version requirements should be quite relaxed. W
+e ran the code on various machines with Anaconda python environments that were inconsistent in module versions.
+lmfit, numdifftools and uncertainties, is most likely to cause trouble: Most problems we encounter with the analysis pipeline relate to uncertainty calculations.
+
+python 3.7.11
+
+numpy 1.20.3
+
+scipy 1.7.3
+
+pandas 1.3.5
+
+lmfit 1.2.2
+
+matplotlilb 3.5.1
+
+uncertainties 3.1.6
+
+numdifftools 0.9.41 
+

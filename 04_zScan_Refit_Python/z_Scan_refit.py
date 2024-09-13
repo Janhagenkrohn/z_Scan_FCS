@@ -10,7 +10,6 @@ import numpy as np
 import os
 import lmfit
 import matplotlib.pyplot as plt
-import stat
 
 # Path to the table with the 2D fit parameter table
 # The directory of this file will also be used as output directory
