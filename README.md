@@ -60,6 +60,7 @@ numdifftools 0.9.41
 
 #### Citation
 ```
+Will be added soon...
 @ARTICLE
 {Krohn2024,
 author={Krohn, Jan-Hagen and Schwille, Petra},
