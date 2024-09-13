@@ -1,11 +1,14 @@
 # z_Scan_FCS
- Scripts for z-Scan FCS: Acquisition at Zeiss LSM980 and analysis
+## Scripts for z-Scan FCS: Acquisition at Zeiss LSM980 and analysis
 
 z-Scan FCS is a technique for measuring Fluorescence Correlation Spectroscopy in 2D systems, namely biological or biomimetic membranes.While z-Scan FCS is more time-consuming than standard FCS, it yields more robust results as it circumvents the problems of membrane FCS that come with limited accuracy positioning of the confocal observation volume on the membrane. Inaccurate focus positioning is not only is a source of noise. Any defocus will lead to biased results with reduced apparent diffusion coefficient, increased apparent particle number, and decreased apparent molecular brightness.  
 
 For further details, see _e.g._:
+
 Benda, ..., Hof 2003, doi.org/10.1021/la0270136
+
 Macháň and Hof 2010, doi.org/10.1016/j.bbamem.2010.02.014
+
 Betaneli, Mücksch, and Schwille 2019, doi.org/10.1007/978-1-4939-9512-7_18
 
 The scripts here help perform z-Scan FCS conveniently, with emphasis on automation of multiple subsequent z-scan acquisitions within one sample, and batch-mode analysis. 
@@ -27,7 +30,7 @@ readConfoCor3.m is the data reader, and has its name from the fact that we wrote
 cross_corr.m, cross_corr_weights.m, and readConfoCor3.m are modified versions of code taken from other sources, please see the copyright and license information specified in the headers of these functions.
 
 
-### 03_Individual_ACF_Fitting_Python
+#### 03_Individual_ACF_Fitting_Python
 acf_fitting_script.py is the Python script meant for user interaction, with rather extensive description of parameters in the code. It expects to find correlation functions in the "Kristine" format produced by the software in 02_Correlation_MATLAB, but also by the software in my other repo "FCS_Fixer" for time-tagged, time-resolved data.
 
 acf_fitting_functions.py contains the functions and classes used called by acf_fitting_script.py. 
@@ -35,13 +38,13 @@ acf_fitting_functions.py contains the functions and classes used called by acf_f
 Huge Thanks goes to Yusuf Qutbuddin, who wrote the original, more complex version of this code. In this repo I provide a version of the code that is simplified but reduced in functionality.
  
  
-### 04_zScan_Refit_Python
+#### 04_zScan_Refit_Python
 This single, relatively compact, script takes the output table in which 03_Individual_ACF_Fitting_Python compiled the individual correlation function fit parameters, associates them with the coordinate data written by the acquisition macro, and performs the re-fit of the z-Scan profile of count rate, apparent particle number, and apparent diffusion time to get accurate "in-focus" values for all three. 
 
 Note that as described in the publications listed above, this is a self-calibrating analysis that determines the beam waist radius needed for physical interpretation of particle number (-> concentration) and diffusion time (-> diffusion coefficient) directly from the data. Depending on the accuracy of the automated xyz coordinate targeting, this may not be reliable though. If you see that the beam waist diameter is not robust/reproducible, you may be better off interpreting the obtained in-focus diffusion time and particle number (which are more robustly estimated than the beam waist diameter) based on standard FCS calibration, and still profit from automated acquisition and focus-finding.
 
 
-### Python environment requirements
+#### Python environment requirements
 The functions used are not especially fancy, the version requirements should be quite relaxed. W
 e ran the code on various machines with Anaconda python environments that were inconsistent in module versions.
 lmfit, numdifftools and uncertainties, is most likely to cause trouble: Most problems we encounter with the analysis pipeline relate to uncertainty calculations.
