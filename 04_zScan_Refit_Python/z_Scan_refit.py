@@ -10,6 +10,7 @@ import numpy as np
 import os
 import lmfit
 import matplotlib.pyplot as plt
+import datetime
 
 # Path to the table with the 2D fit parameter table
 # The directory of this file will also be used as output directory
@@ -135,7 +136,7 @@ class Z_Scan_refit():
                        y0, 
                        amp, 
                        scale):
-        return y0 + amp / scale * ((x - x0)**2 + scale)
+        return y0 + amp * scale / ((x - x0)**2 + scale)
 
 
     def model_lmfit(self,
@@ -183,8 +184,6 @@ table_save_path = os.path.join(ouput_folder,
 for i_xy in range(n_xy):
     
     indices_in_positions = np.nonzero(positions['PositionIndex'].to_numpy() == i_xy)[0]
-    z_positions = positions['z[micron]'][indices_in_positions].to_numpy()
-    z_range = z_positions.max() - z_positions.min()
     
     p_indices = positions['MeasurementIndex'][indices_in_positions].to_numpy()
     
@@ -199,18 +198,24 @@ for i_xy in range(n_xy):
     dN_array = []
     N_uncertainty = 'dN' in data.keys()
     
+    z_positions = []
+
+    got_a_file_name = False
     # Iteration over z positions within xy position
     for i_pos, pos in enumerate(p_indices):
         
         # We now look for the important values in each z position. In case there are repeats at a given position or something, we average them 
         index_in_data = np.nonzero(data['P'].to_numpy() == pos)[0]
         
-        if i_pos == 0: # For export
-            one_file_name = os.path.split(data['Filename'][index_in_data[0]])[1]
         
         if index_in_data.shape[0] > 0:
             # If it is zero, that means the fit in this position failed
             
+            if not got_a_file_name: # For export
+                one_file_name = os.path.split(data['Filename'][index_in_data[0]])[1]
+                one_folder_name = os.path.split(data['Filename'][index_in_data[0]])[0]
+                got_a_file_name = True
+                
             count_rates.append(data['count_rate'][index_in_data].mean())
             
             tau_diff_array.append(data['tau_D'][index_in_data].mean())
@@ -229,14 +234,19 @@ for i_xy in range(n_xy):
             else:
                 dN_array.append(1.)
 
-
+            z_positions.append(positions['z[micron]'][indices_in_positions[i_pos]])
+            
+    if len(count_rates) == 0:
+        # Nothing found, for whatever reason: Just to to next xy position
+        continue
     # Convert lists to arrays
     count_rates = np.array(count_rates)
     tau_diff_array = np.array(tau_diff_array)
     N_array = np.array(N_array)
     dtau_diff_array = np.array(dtau_diff_array)
     dN_array = np.array(dN_array)
-    
+    z_positions = np.array(z_positions)
+    z_range = z_positions.max() - z_positions.min()
     
     # Workarounds if we not have uncertainties...
     if N_uncertainty and not (tauD_uncertainty_direct or tauD_uncertainty_fromD):
@@ -280,7 +290,11 @@ for i_xy in range(n_xy):
 
 
     # Start fitting
-    if len(count_rates) >= 5:
+    if len(count_rates) < 5:
+        # Too few data points for fitting
+        continue
+            
+    try:
             
         
         # Set up model
@@ -353,7 +367,7 @@ for i_xy in range(n_xy):
         
         
         # Run fits repeatedly, iteratively removing the position furthest away from the estimated center (until we have 5 left)
-        keep = np.arange(p_indices.shape[0]) - 1
+        keep = np.arange(z_positions.shape[0])
         fit_results = []
         fit_goodnesses = []
         
@@ -423,7 +437,9 @@ for i_xy in range(n_xy):
         export_dict['x_position_um'] = positions['x[micron]'][indices_in_positions[0]]
         export_dict['y_position_um'] = positions['y[micron]'][indices_in_positions[0]]
         export_dict['Filename'] = one_file_name
-        
+        export_dict['Folder'] = one_folder_name
+        export_dict['Time_tag'] = datetime.datetime.now().strftime('%m/%d/%Y-%H:%M:%S')
+
 
         
 
@@ -575,5 +591,7 @@ for i_xy in range(n_xy):
         plt.savefig(save_path, dpi=300)
         plt.close()
         
-    else: # from if len(count_rates) >= 5:
-        raise Warning('Could not refit z scan around ' + one_file_name + ' - too few data points')
+    except:
+        # Failed for some reason...Continue with next one, I think/hope 
+        # I now caught all exceptions that one can handle reasonably.
+        continue
