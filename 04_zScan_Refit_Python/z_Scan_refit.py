@@ -135,7 +135,7 @@ class Z_Scan_refit():
                        y0, 
                        amp, 
                        scale):
-        return y0 + amp / ((x - x0)**2 + scale)
+        return y0 + amp / scale * ((x - x0)**2 + scale)
 
 
     def model_lmfit(self,
