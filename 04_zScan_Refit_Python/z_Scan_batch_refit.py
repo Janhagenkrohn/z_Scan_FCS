@@ -65,7 +65,7 @@ class Z_Scan_refit():
             
         self.z = z
         self.acr = acr
-        self.dacr = np.where(acr > 0, np.sqrt(acr) / acquisition_time, np.max(acr))
+        self.dacr = np.where(acr > 0, np.sqrt(acr / acquisition_time), np.max(acr))
         self.tau_diff = tau_diff
         self.dtau_diff = dtau_diff
         self.N = N
