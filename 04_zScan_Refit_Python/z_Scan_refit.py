@@ -34,7 +34,7 @@ acquisition_time = 30 # Duration in seconds of each single-spot acquisition
 
 #%% After this point, normally no editing by the user should be needed
 
-ouput_folder = os.path.split(file_path_acf_fits)[0]
+output_folder = os.path.split(file_path_acf_fits)[0]
 
 # Load and unpack single-ACF fit parameters and positions list
 data = pd.read_csv(file_path_acf_fits, 
@@ -184,7 +184,7 @@ class Z_Scan_refit():
 
 n_xy = positions['PositionIndex'].max() + 1
 
-table_save_path = os.path.join(ouput_folder,
+table_save_path = os.path.join(output_folder,
                                output_name)
 
 # Iteration over xy positons
@@ -470,7 +470,12 @@ for i_xy in range(n_xy):
  
         
         # .csv export of fit curves
-        fit_object = Z_Scan_refit(z_positions,
+        # .csv export of fit curves
+        # Only z values really matter
+        z_positions_for_plotting = np.arange(start = z_positions.min(),
+                                            stop = z_positions.max() + (z_positions.max() - z_positions.min()) / 100,
+                                            step = (z_positions.max() - z_positions.min()) / 100)
+        fit_object = Z_Scan_refit(z_positions_for_plotting,
                                   count_rates,
                                   tau_diff_array,
                                   dtau_diff_array,
@@ -482,27 +487,32 @@ for i_xy in range(n_xy):
         
         sort_order = np.argsort(z_positions)                
 
-        z_positions_sort = z_positions[sort_order]
-        count_rates_sort = count_rates[sort_order]
-        count_rates_fit_sort = acr_lorentzian[sort_order]
-        tau_diff_array_sort = tau_diff_array[sort_order]
-        dtau_diff_array_sort = dtau_diff_array[sort_order]
-        tau_diff_fit_sort = tau_diff_parabola[sort_order]
-        N_array_sort = N_array[sort_order]
-        dN_array_sort = dN_array[sort_order]
-        N_fit_sort = N_parabola[sort_order]
+        z_positions_sort = np.append(z_positions[sort_order], 
+                                     np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
+        count_rates_sort = np.append(count_rates[sort_order], 
+                                     np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
+        tau_diff_array_sort = np.append(tau_diff_array[sort_order], 
+                                        np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
+        dtau_diff_array_sort = np.append(dtau_diff_array[sort_order], 
+                                         np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
+        N_array_sort = np.append(N_array[sort_order], 
+                                 np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
+        dN_array_sort = np.append(dN_array[sort_order], 
+                                  np.ones(z_positions_for_plotting.shape[0] - z_positions.shape[0]) * np.nan)
         
-        export_dict_2 = {'z[um]':z_positions_sort,
+        
+        export_dict_2 = {'z_data[um]':z_positions_sort,
                          'ACR':count_rates_sort,
-                         'ACR fit': count_rates_fit_sort,
                          'tau_diff': tau_diff_array_sort,
                          'dtau_diff': dtau_diff_array_sort,
-                         'tau_diff fit': tau_diff_fit_sort,
                          'N': N_array_sort,
                          'dN': dN_array_sort,
-                         'N fit': N_fit_sort}
+                         'z_fit[um]':z_positions_for_plotting,
+                         'ACR fit': acr_lorentzian,
+                         'tau_diff fit': tau_diff_parabola,
+                         'N fit': N_parabola}
         
-        save_path = os.path.join(ouput_folder, str(i_xy) + '_' + one_file_name + 'z_scan_refit_data.csv')
+        save_path = os.path.join(output_folder, str(i_xy) + '_' + one_file_name + 'z_scan_refit_data.csv')
         
         
         
@@ -515,6 +525,7 @@ for i_xy in range(n_xy):
         fig, ax = plt.subplots(nrows=3, ncols=1, sharex = True)
         
         z_positions_recenter = z_positions_sort - best_fit_params['z_center'].value
+        z_positions_for_plotting_recenter = z_positions_for_plotting - best_fit_params['z_center'].value
         
         # Top panel: Count rates
         ax[0].plot(z_positions_recenter,
@@ -523,8 +534,8 @@ for i_xy in range(n_xy):
                    linestyle = 'none',
                    color = 'k')
         
-        ax[0].plot(z_positions_recenter,
-                   count_rates_fit_sort, 
+        ax[0].plot(z_positions_for_plotting_recenter,
+                   acr_lorentzian, 
                    marker = '',
                    linestyle = '-',
                    color = 'tab:gray',
@@ -553,8 +564,8 @@ for i_xy in range(n_xy):
                    linestyle = 'none',
                    color = 'tab:gray')
         
-        ax[1].plot(z_positions_recenter,
-                   tau_diff_fit_sort, 
+        ax[1].plot(z_positions_for_plotting_recenter,
+                   tau_diff_parabola, 
                    marker = '',
                    linestyle = '-',
                    color = 'tab:gray',
@@ -583,8 +594,8 @@ for i_xy in range(n_xy):
                    linestyle = 'none',
                    color = 'tab:gray')
         
-        ax[2].plot(z_positions_recenter,
-                   N_fit_sort, 
+        ax[2].plot(z_positions_for_plotting_recenter,
+                   N_parabola, 
                    marker = '',
                    linestyle = '-',
                    color = 'tab:gray',
@@ -595,7 +606,7 @@ for i_xy in range(n_xy):
         ax[2].legend()
 
         fig.supxlabel('z [micrometers]')
-        save_path = os.path.join(ouput_folder, str(i_xy) + '_' + one_file_name + 'z_scan_refit.png')
+        save_path = os.path.join(output_folder, str(i_xy) + '_' + one_file_name + 'z_scan_refit.png')
         plt.savefig(save_path, dpi=300)
         plt.close()
         
