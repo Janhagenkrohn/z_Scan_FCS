@@ -16,6 +16,8 @@ import datetime
 
 glob_dir = r'C:\some_directory'
 
+acquisition_time = 30 # Duration in seconds of each single-spot acquisition
+
 folders = []
 file_names_acf_fits = []
 
@@ -55,14 +57,20 @@ class Z_Scan_refit():
                  tau_diff,
                  dtau_diff,
                  N,
-                 dN):
+                 dN,
+                 acquisition_time = None):
+        
+        if acquisition_time == None:
+            acquisition_time = 1.
+            
         self.z = z
         self.acr = acr
-        self.dacr = np.where(acr > 0, np.sqrt(acr), np.max(acr))
+        self.dacr = np.where(acr > 0, np.sqrt(acr) / acquisition_time, np.max(acr))
         self.tau_diff = tau_diff
         self.dtau_diff = dtau_diff
         self.N = N
         self.dN = dN
+        
         
         
     def parabola_fun(self,
@@ -397,7 +405,8 @@ for i_z_scan, output_folder in enumerate(folders):
                                           tau_diff_array[keep],
                                           dtau_diff_array[keep],
                                           N_array[keep],
-                                          dN_array[keep])
+                                          dN_array[keep],
+                                          acquisition_time = acquisition_time if acquisition_time > 0. else None)
                                 
                 mini = lmfit.Minimizer(fit_object.cost_lmfit, 
                                        initial_params,

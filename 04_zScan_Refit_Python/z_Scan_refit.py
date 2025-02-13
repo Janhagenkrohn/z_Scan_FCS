@@ -29,6 +29,7 @@ output_name = 'z_scan_params.csv'
 # Note that the NA is only used as an initial parameter!
 wavelength = 0.561 # um, or rather, whatever unit of space you want to use for the diffusion coefficient
 numerical_aperture = 1.2
+acquisition_time = 30 # Duration in seconds of each single-spot acquisition
 
 
 #%% After this point, normally no editing by the user should be needed
@@ -112,14 +113,20 @@ class Z_Scan_refit():
                  tau_diff,
                  dtau_diff,
                  N,
-                 dN):
+                 dN,
+                 acquisition_time = None):
+        
+        if acquisition_time == None:
+            acquisition_time = 1.
+            
         self.z = z
         self.acr = acr
-        self.dacr = np.where(acr > 0, np.sqrt(acr), np.max(acr))
+        self.dacr = np.where(acr > 0, np.sqrt(acr) / acquisition_time, np.max(acr))
         self.tau_diff = tau_diff
         self.dtau_diff = dtau_diff
         self.N = N
         self.dN = dN
+        
         
         
     def parabola_fun(self,
@@ -378,7 +385,8 @@ for i_xy in range(n_xy):
                                       tau_diff_array[keep],
                                       dtau_diff_array[keep],
                                       N_array[keep],
-                                      dN_array[keep])
+                                      dN_array[keep],
+                                      acquisition_time = acquisition_time if acquisition_time > 0. else None)
                             
             mini = lmfit.Minimizer(fit_object.cost_lmfit, 
                                    initial_params,
